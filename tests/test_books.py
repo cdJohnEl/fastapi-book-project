@@ -1,4 +1,30 @@
 from tests import client
+import os
+import pytest
+from fastapi.testclient import TestClient
+from main import app
+
+
+# Get the base URL from an environment variable, defaulting to the local server
+BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+
+# Use TestClient for local testing, and requests for deployed testing
+if BASE_URL == "http://localhost:8000":
+    client = TestClient(app)
+else:
+    import requests
+    class DeployedTestClient:
+        def __init__(self, base_url):
+            self.base_url = base_url
+        def get(self, url, **kwargs):
+            return requests.get(f"{self.base_url}{url}", **kwargs)
+        def post(self, url, **kwargs):
+            return requests.post(f"{self.base_url}{url}", **kwargs)
+        def put(self, url, **kwargs):
+            return requests.put(f"{self.base_url}{url}", **kwargs)
+        def delete(self, url, **kwargs):
+            return requests.delete(f"{self.base_url}{url}", **kwargs)
+    client = DeployedTestClient(BASE_URL)
 
 
 def test_get_all_books():
@@ -50,3 +76,14 @@ def test_delete_book():
 
     response = client.get("/books/3")
     assert response.status_code == 404
+
+
+def test_get_all_books():
+    response = client.get("/books/")
+    assert response.status_code == 200
+    assert len(response.json()) == 3
+
+def test_get_nonexistent_book():
+    response = client.get("/books/999")  # Assuming 999 is an invalid book ID
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Book not found"}
